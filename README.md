@@ -41,8 +41,7 @@ The script will:
 ## Directory layout
 ```
 opencloud-desktop/
-├─ build-helper/
-│─ build-opencloud.ps1
+├─ build-opencloud.ps1
 │─ README.md
 └─ (upstream repo)
 ```
@@ -53,4 +52,5 @@ opencloud-desktop/
 - If Craft complains about `${Env:HOME}` (common on fresh Windows installs), set it once via `setx HOME "%USERPROFILE%"` and open a new PowerShell window.
 - Installer output: `opencloud-desktop-latest-<BuildNumber>-windows-cl-msvc2022-x86_64.exe`
 - Portable archive: `opencloud-desktop-latest-<BuildNumber>-windows-cl-msvc2022-x86_64.7z`
+
 
