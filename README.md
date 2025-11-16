@@ -22,7 +22,7 @@ This mini project lets any developer build the official [opencloud-eu/desktop](h
 2. Copy or download the `build-helper` folder into this repo (the same directory that contains the `.github` folder).
 3. Run PowerShell with execution rights:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File build-helper\build-opencloud.ps1 -BuildNumber 1
+   powershell -ExecutionPolicy Bypass -File build-opencloud.ps1 -BuildNumber 1
    ```
 
 The script will:
@@ -42,8 +42,8 @@ The script will:
 ```
 opencloud-desktop/
 ├─ build-helper/
-│  ├─ build-opencloud.ps1
-│  └─ README.md
+│─ build-opencloud.ps1
+│─ README.md
 └─ (upstream repo)
 ```
 
@@ -53,3 +53,4 @@ opencloud-desktop/
 - If Craft complains about `${Env:HOME}` (common on fresh Windows installs), set it once via `setx HOME "%USERPROFILE%"` and open a new PowerShell window.
 - Installer output: `opencloud-desktop-latest-<BuildNumber>-windows-cl-msvc2022-x86_64.exe`
 - Portable archive: `opencloud-desktop-latest-<BuildNumber>-windows-cl-msvc2022-x86_64.7z`
+
