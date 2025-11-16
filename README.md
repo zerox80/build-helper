@@ -8,17 +8,18 @@ This mini project lets any developer build the official [opencloud-eu/desktop](h
 
 ## Requirements
 - Windows 11/10 x64
-- Visual Studio 2022 Build Tools (Desktop C++ workload)
+- Visual Studio 2022 Build Tools  
+  When running the VS Installer, select the **Desktop development with C++** workload (MSVC v143 + Windows 11 SDK).
 - Git
 - PowerShell (≥ 5) with internet access
 
 ## Usage
 1. Clone the upstream repo:
-   ```powershell
-   git clone https://github.com/opencloud-eu/desktop.git
-   cd desktop
-   ```
-2. Copy or download the `build-helper` folder into the repo.
+ ```powershell
+  git clone https://github.com/opencloud-eu/desktop.git
+  cd desktop
+  ```
+2. Copy or download the `build-helper` folder into this repo (the same directory that contains the `.github` folder).
 3. Run PowerShell with execution rights:
    ```powershell
    powershell -ExecutionPolicy Bypass -File build-helper\build-opencloud.ps1 -BuildNumber 1
@@ -48,5 +49,7 @@ opencloud-desktop/
 
 ## Notes
 - The first run downloads several GB of toolchains; subsequent builds reuse the cache.
+- The script must reside inside the OpenCloud Desktop repo (so `.github/workflows/.craft.ps1` is available). If you zip/share `build-helper`, always drop it into the freshly cloned repo before running it.
+- If Craft complains about `${Env:HOME}` (common on fresh Windows installs), set it once via `setx HOME "%USERPROFILE%"` and open a new PowerShell window.
 - Installer output: `opencloud-desktop-latest-<BuildNumber>-windows-cl-msvc2022-x86_64.exe`
 - Portable archive: `opencloud-desktop-latest-<BuildNumber>-windows-cl-msvc2022-x86_64.7z`
