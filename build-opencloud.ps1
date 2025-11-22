@@ -117,11 +117,15 @@ if (-not (Test-Path $devUtilsDest)) { New-Item -ItemType Directory -Path $devUti
 
 if (Test-Path $libsSource) {
     Write-Host "Injecting all libraries from KDE blueprints..." -ForegroundColor Cyan
-    Copy-Item -Path "$libsSource\*" -Destination $libsDest -Recurse -Force
+    # Clean destination first to avoid duplicates/conflicts
+    if (Test-Path $libsDest) { Remove-Item $libsDest -Recurse -Force }
+    Copy-Item -Path $libsSource -Destination $libsDest -Recurse -Force
 }
 if (Test-Path $devUtilsSource) {
     Write-Host "Injecting all dev-utils from KDE blueprints..." -ForegroundColor Cyan
-    Copy-Item -Path "$devUtilsSource\*" -Destination $devUtilsDest -Recurse -Force
+    # Clean destination first to avoid duplicates/conflicts
+    if (Test-Path $devUtilsDest) { Remove-Item $devUtilsDest -Recurse -Force }
+    Copy-Item -Path $devUtilsSource -Destination $devUtilsDest -Recurse -Force
 }
 
 # Clean up KDE temp
