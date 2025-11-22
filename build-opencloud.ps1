@@ -174,36 +174,99 @@ if (Test-Path $clientBlueprint) {
     (Get-Content $clientBlueprint) -replace 'libs/qt/qtbase', 'libs/qt6/qtbase' | Set-Content $clientBlueprint
 }
 
-# --- FIX: Missing libs/runtime ---
-# virtual/base depends on libs/runtime, which is missing. We create a dummy.
-$runtimeDir = Join-Path $targetBlueprintDir "libs\runtime"
-if (-not (Test-Path $runtimeDir)) {
-    New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
-    $runtimeContent = @'
-import info
-from Package.VirtualPackageBase import VirtualPackageBase
-
-class subinfo(info.infoclass):
-    def setTargets(self):
-        self.targets["default"] = ""
-        self.defaultTarget = "default"
-    def setDependencies(self):
-        pass
-
-class Package(VirtualPackageBase):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-'@
-    Set-Content -Path (Join-Path $runtimeDir "runtime.py") -Value $runtimeContent
-    Write-Host "Created dummy libs/runtime blueprint." -ForegroundColor Cyan
+# --- FIX: Patch craft-blueprints-opencloud dependency ---
+# It depends on craft/craft-core which is missing.
+$opencloudBlueprint = Join-Path $targetBlueprintDir "craft\craft-blueprints-opencloud\craft-blueprints-opencloud.py"
+if (Test-Path $opencloudBlueprint) {
+    Write-Host "Patching craft-blueprints-opencloud dependency..." -ForegroundColor Cyan
+    (Get-Content $opencloudBlueprint) -replace 'self.buildDependencies\["craft/craft-core"\]', '# self.buildDependencies["craft/craft-core"]' | Set-Content $opencloudBlueprint
+    # Fix IndentationError by adding pass
+    (Get-Content $opencloudBlueprint) -replace 'def setDependencies\(self\):', "def setDependencies(self):`n        pass" | Set-Content $opencloudBlueprint
 }
 
-# --- FIX: Missing virtual/base ---
-# libs/qt6/qtbase depends on virtual/base, which is missing. We create a dummy.
-$virtualBaseDir = Join-Path $targetBlueprintDir "virtual\base"
-if (-not (Test-Path $virtualBaseDir)) {
-    New-Item -ItemType Directory -Path $virtualBaseDir -Force | Out-Null
-    $virtualBaseContent = @'
+# --- FIX: Patch opencloud-desktop dependency ---
+# It depends on libs/zlib which is missing.
+$desktopBlueprint = Join-Path $targetBlueprintDir "opencloud\opencloud-desktop\opencloud-desktop.py"
+if (Test-Path $desktopBlueprint) {
+    Write-Host "Patching opencloud-desktop dependency..." -ForegroundColor Cyan
+    (Get-Content $desktopBlueprint) -replace 'self.runtimeDependencies\["libs/zlib"\]', '# self.runtimeDependencies["libs/zlib"]' | Set-Content $desktopBlueprint
+    (Get-Content $desktopBlueprint) -replace 'self.runtimeDependencies\["libs/sqlite"\]', '# self.runtimeDependencies["libs/sqlite"]' | Set-Content $desktopBlueprint
+    (Get-Content $desktopBlueprint) -replace 'self.runtimeDependencies\["libs/openssl"\]', '# self.runtimeDependencies["libs/openssl"]' | Set-Content $desktopBlueprint
+    # Fix Qt paths: libs/qt → libs/qt6
+    (Get-Content $desktopBlueprint) -replace 'libs/qt/', 'libs/qt6/' | Set-Content $desktopBlueprint
+}
+
+# --- FIX: Patch llvm dependency ---
+# It depends on libs/libxml2, libs/libzstd, libs/python, dev-utils/system-python3 which are missing.
+$llvmBlueprint = Join-Path $targetBlueprintDir "libs\llvm\llvm.py"
+if (Test-Path $llvmBlueprint) {
+    Write-Host "Patching llvm dependency..." -ForegroundColor Cyan
+    (Get-Content $llvmBlueprint) -replace 'self.runtimeDependencies\["libs/libxml2"\]', '# self.runtimeDependencies["libs/libxml2"]' | Set-Content $llvmBlueprint
+    (Get-Content $llvmBlueprint) -replace 'self.buildDependencies\["libs/libxml2"\]', '# self.buildDependencies["libs/libxml2"]' | Set-Content $llvmBlueprint
+    (Get-Content $llvmBlueprint) -replace 'self.buildDependencies\["libs/libzstd"\]', '# self.buildDependencies["libs/libzstd"]' | Set-Content $llvmBlueprint
+    (Get-Content $llvmBlueprint) -replace 'self.buildDependencies\["libs/python"\]', '# self.buildDependencies["libs/python"]' | Set-Content $llvmBlueprint
+    (Get-Content $llvmBlueprint) -replace 'self.buildDependencies\["dev-utils/system-python3"\]', '# self.buildDependencies["dev-utils/system-python3"]' | Set-Content $llvmBlueprint
+}
+
+# --- FIX: Global patch for common missing libs ---
+# Many libs are missing and referenced across blueprints. Patch them all globally.
+Write-Host "Globally patching common missing library dependencies..." -ForegroundColor Cyan
+$missingLibs = @(
+    'libs/zlib',
+    'libs/liblzma',
+    'libs/libxml2',
+    'libs/sqlite',
+    'libs/openssl',
+    'libs/libpng',
+    'libs/libjpeg-turbo',
+    'libs/freetype',
+    'libs/brotli',
+    'libs/libzstd',
+    'libs/libb2',
+    'libs/icu',
+    'libs/harfbuzz',
+    'libs/pcre2',
+    'libs/fontconfig',
+    'libs/dbus',
+    'libs/glib',
+    'libs/cups',
+    'libs/python',
+    'libs/iconv',
+    'libs/libxslt',
+    'libs/libsecret',
+    'python-modules/meson',
+    'python-modules/ninja',
+    'dev-utils/ninja',
+    'dev-utils/meson'
+)
+
+Get-ChildItem -Path $targetBlueprintDir -Recurse -Filter "*.py" | ForEach-Object {
+    $content = Get-Content $_.FullName -Raw
+    $modified = $false
+    foreach ($lib in $missingLibs) {
+        if ($content -match [regex]::Escape($lib)) {
+            $content = $content -replace "self\.runtimeDependencies\[`"$lib`"\]", "# self.runtimeDependencies[`"$lib`"]"
+            $content = $content -replace "self\.buildDependencies\[`"$lib`"\]", "# self.buildDependencies[`"$lib`"]"
+            $modified = $true
+        }
+    }
+    if ($modified) {
+        Set-Content -Path $_.FullName -Value $content -NoNewline
+    }
+}
+
+# --- Helper: Create Robust Dummy Blueprint ---
+function Make-DummyBlueprint {
+    param (
+        [string]$Path,
+        [string]$Name
+    )
+    $dir = Join-Path $targetBlueprintDir $Path
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    
+    $content = @"
 import info
 from Package.VirtualPackageBase import VirtualPackageBase
 
@@ -212,16 +275,41 @@ class subinfo(info.infoclass):
         self.targets["default"] = ""
         self.defaultTarget = "default"
     def setDependencies(self):
-        # virtual/base usually depends on libs/runtime, dev-utils/7zip, etc.
-        # We just want it to exist.
         pass
 
 class Package(VirtualPackageBase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-'@
-    Set-Content -Path (Join-Path $virtualBaseDir "base.py") -Value $virtualBaseContent
-    Write-Host "Created dummy virtual/base blueprint." -ForegroundColor Cyan
+    def fetch(self): return True
+    def unpack(self): return True
+    def configure(self): return True
+    def make(self): return True
+    def install(self): return True
+    def qmerge(self): return True
+    def unmerge(self): return True
+"@
+    Set-Content -Path (Join-Path $dir "$Name.py") -Value $content
+    Write-Host "Created robust dummy blueprint: $Path/$Name" -ForegroundColor Cyan
+}
+
+# --- FIX: Missing libs/runtime ---
+Make-DummyBlueprint -Path "libs\runtime" -Name "runtime"
+
+# --- FIX: Missing dev-utils/cmake ---
+Make-DummyBlueprint -Path "dev-utils\cmake" -Name "cmake"
+
+# --- FIX: Missing dev-utils/wget, flexbison, etc. ---
+$dummyTools = @(
+    @{Path = "dev-utils\wget"; Name = "wget"},
+    @{Path = "dev-utils\flexbison"; Name = "flexbison"},
+    @{Path = "dev-utils\pkgconf"; Name = "pkgconf"},
+    @{Path = "dev-utils\perl"; Name = "perl"},
+    @{Path = "kde\frameworks\extra-cmake-modules"; Name = "extra-cmake-modules"},
+    @{Path = "virtual\base"; Name = "base"}
+)
+
+foreach ($tool in $dummyTools) {
+    Make-DummyBlueprint -Path $tool.Path -Name $tool.Name
 }
 
 # --- FIX: Patch qtbase.py to disable missing dependencies (ICU, OpenSSL, etc.) ---
@@ -266,6 +354,11 @@ if (Test-Path $qtBaseBlueprint) {
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/libjpeg-turbo"\]', '# self.runtimeDependencies["libs/libjpeg-turbo"]'
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/sqlite"\]', '# self.runtimeDependencies["libs/sqlite"]'
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/freetype"\]', '# self.runtimeDependencies["libs/freetype"]'
+    
+    # Remove build dependencies
+    $qtContent = $qtContent -replace 'self.buildDependencies\["dev-utils/pkgconf"\]', '# self.buildDependencies["dev-utils/pkgconf"]'
+    $qtContent = $qtContent -replace 'self.buildDependencies\["dev-utils/perl"\]', '# self.buildDependencies["dev-utils/perl"]'
+    $qtContent = $qtContent -replace 'self.buildDependencies\["dev-utils/flexbison"\]', '# self.buildDependencies["dev-utils/flexbison"]'
     
     # Fix IndentationError by commenting out the if statements too
     $qtContent = $qtContent -replace 'if self.options.dynamic.withDBus:', '# if self.options.dynamic.withDBus:'
