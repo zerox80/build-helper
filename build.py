@@ -28,6 +28,7 @@ SQLITE_URL = "https://www.sqlite.org/2024/sqlite-amalgamation-3450100.zip" # Exa
 ECM_REPO = "https://invent.kde.org/frameworks/extra-cmake-modules.git"
 KEYCHAIN_REPO = "https://github.com/frankosterfeld/qtkeychain.git"
 LIBREGRAPH_REPO = "https://github.com/owncloud/libre-graph-api-cpp-qt-client.git"
+KDSINGLEAPP_REPO = "https://github.com/KDAB/KDSingleApplication.git"
 
 def run_command(cmd, cwd=None, fail_exit=True):
     print(f">> Running: {' '.join(cmd)}")
@@ -284,6 +285,25 @@ def install_libregraph(qt_dir):
     run_command(["cmake", "-S", source_dir, "-B", ".", f"-DCMAKE_INSTALL_PREFIX={INSTALL_DIR}", f"-DCMAKE_PREFIX_PATH={qt_dir}"], cwd=build_dir)
     run_command(["cmake", "--build", ".", "--config", "Release", "--target", "install"], cwd=build_dir)
 
+def install_kdsingleapp(qt_dir):
+    kdsingle_dir = os.path.join(DEPS_DIR, "kdsingleapp")
+    if not os.path.exists(kdsingle_dir):
+        print("Cloning KDSingleApplication...")
+        run_command(["git", "clone", "--depth", "1", "-b", "v1.0.0", KDSINGLEAPP_REPO, kdsingle_dir])
+    
+    # Check if installed
+    if os.path.exists(os.path.join(INSTALL_DIR, "lib", "cmake", "KDSingleApplication-qt6")):
+        print("KDSingleApplication already installed.")
+        return
+
+    build_dir = os.path.join(kdsingle_dir, "build")
+    if os.path.exists(build_dir):
+        shutil.rmtree(build_dir)
+    os.makedirs(build_dir)
+    
+    run_command(["cmake", "-S", "..", "-B", ".", f"-DCMAKE_INSTALL_PREFIX={INSTALL_DIR}", f"-DCMAKE_PREFIX_PATH={qt_dir}", "-DKDSingleApplication_QT6=ON"], cwd=build_dir)
+    run_command(["cmake", "--build", ".", "--config", "Release", "--target", "install"], cwd=build_dir)
+
 def build_opencloud(qt_dir):
     print("Building OpenCloud Desktop...")
     if not os.path.exists(BUILD_DIR):
@@ -321,6 +341,7 @@ def main():
     install_sqlite()
     install_qtkeychain(qt_dir)
     install_libregraph(qt_dir)
+    install_kdsingleapp(qt_dir)
     
     build_opencloud(qt_dir)
     print("Done! Check the build directory for the installer.")
