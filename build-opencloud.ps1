@@ -237,7 +237,25 @@ if (Test-Path $qtBaseBlueprint) {
     $qtContent = $qtContent -replace 'self.options.isActive\("libs/cups"\)', 'False'
     $qtContent = $qtContent -replace 'self.options.isActive\("libs/fontconfig"\)', 'False'
     
+    # Force disable specific features that might default to True
+    $qtContent = $qtContent -replace 'registerOption\("withDBus", .*\)', 'registerOption("withDBus", False)'
+    $qtContent = $qtContent -replace 'registerOption\("withGlib", .*\)', 'registerOption("withGlib", False)'
+    $qtContent = $qtContent -replace 'registerOption\("withHarfBuzz", .*\)', 'registerOption("withHarfBuzz", False)'
+    $qtContent = $qtContent -replace 'registerOption\("withPCRE2", .*\)', 'registerOption("withPCRE2", False)'
+    $qtContent = $qtContent -replace 'registerOption\("withEgl", .*\)', 'registerOption("withEgl", False)'
+    
     # Remove runtime dependencies in setDependencies
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["virtual/base"\]', '# self.runtimeDependencies["virtual/base"]'
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/dbus"\]', '# self.runtimeDependencies["libs/dbus"]'
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/glib"\]', '# self.runtimeDependencies["libs/glib"]'
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/harfbuzz"\]', '# self.runtimeDependencies["libs/harfbuzz"]'
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/pcre2"\]', '# self.runtimeDependencies["libs/pcre2"]'
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/icu"\]', '# self.runtimeDependencies["libs/icu"]'
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/cups"\]', '# self.runtimeDependencies["libs/cups"]'
+    $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/fontconfig"\]', '# self.runtimeDependencies["libs/fontconfig"]'
+    
+    # Remove runtime dependencies in setDependencies
+    $qtContent = $qtContent -replace 'if not self.options.buildStatic:', "if not self.options.buildStatic:`n            pass"
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["virtual/base"\]', '# self.runtimeDependencies["virtual/base"]'
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/openssl"\]', '# self.runtimeDependencies["libs/openssl"]'
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/zlib"\]', '# self.runtimeDependencies["libs/zlib"]'
@@ -248,6 +266,15 @@ if (Test-Path $qtBaseBlueprint) {
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/libjpeg-turbo"\]', '# self.runtimeDependencies["libs/libjpeg-turbo"]'
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/sqlite"\]', '# self.runtimeDependencies["libs/sqlite"]'
     $qtContent = $qtContent -replace 'self.runtimeDependencies\["libs/freetype"\]', '# self.runtimeDependencies["libs/freetype"]'
+    
+    # Fix IndentationError by commenting out the if statements too
+    $qtContent = $qtContent -replace 'if self.options.dynamic.withDBus:', '# if self.options.dynamic.withDBus:'
+    $qtContent = $qtContent -replace 'if self.options.dynamic.withICU:', '# if self.options.dynamic.withICU:'
+    $qtContent = $qtContent -replace 'if self.options.dynamic.withHarfBuzz:', '# if self.options.dynamic.withHarfBuzz:'
+    $qtContent = $qtContent -replace 'if self.options.dynamic.withFontConfig:', '# if self.options.dynamic.withFontConfig:'
+    $qtContent = $qtContent -replace 'if CraftCore.compiler.isUnix and self.options.dynamic.withGlib:', '# if CraftCore.compiler.isUnix and self.options.dynamic.withGlib:'
+    $qtContent = $qtContent -replace 'if self.options.dynamic.withPCRE2:', '# if self.options.dynamic.withPCRE2:'
+    $qtContent = $qtContent -replace 'if self.options.dynamic.withCUPS:', '# if self.options.dynamic.withCUPS:'
     
     # Force internal versions in configure args (remove system libs)
     $qtContent = $qtContent -replace '"-DFEATURE_system_sqlite=ON"', '"-DFEATURE_system_sqlite=OFF"'
@@ -266,6 +293,8 @@ if (Test-Path $qtBaseBlueprint) {
     $qtContent = $qtContent -replace 'f"-DFEATURE_glib=\{self.subinfo.options.dynamic.withGlib.asOnOff\}"', '"-DFEATURE_glib=OFF"'
     $qtContent = $qtContent -replace 'f"-DFEATURE_fontconfig=\{self.subinfo.options.dynamic.withFontConfig.asOnOff\}"', '"-DFEATURE_fontconfig=OFF"'
     $qtContent = $qtContent -replace 'f"-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=\{self.subinfo.options.dynamic.useLtcg.asOnOff\}"', '"-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF"'
+    $qtContent = $qtContent -replace 'f"-DFEATURE_cups=\{self.subinfo.options.dynamic.withCUPS.asOnOff\}"', '"-DFEATURE_cups=OFF"'
+    $qtContent = $qtContent -replace 'f"-DQT_FEATURE_egl=\{self.subinfo.options.dynamic.withEgl.asOnOff\}"', '"-DQT_FEATURE_egl=OFF"'
     
     Set-Content -Path $qtBaseBlueprint -Value $qtContent
 }
