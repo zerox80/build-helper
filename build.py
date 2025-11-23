@@ -8,12 +8,10 @@ import platform
 
 # --- Configuration ---
 QT_VERSION = "6.8.0"
-QT_MODULES = ["qt5compat", "qtimageformats", "qtshadertools", "qtsvg", "qttools", "qtwebsockets"] 
+QT_MODULES = ["qt5compat", "qtdeclarative", "qtimageformats", "qtshadertools", "qtsvg", "qttools", "qtwebsockets"] 
 # Note: 'qtbase' is implied. Added common modules. 
 # User's CMakeLists mentions: Core Concurrent Network Widgets Xml Quick QuickWidgets QuickControls2 DBus
-# These are mostly in qtbase and qtdeclarative.
-# Let's add 'qtdeclarative' explicitly if aqt doesn't include it by default (it usually does in base, but let's be safe).
-# Actually, aqt installs 'qtbase' by default. We need 'qtdeclarative' for Quick.
+# qtdeclarative provides: Quick, QuickWidgets, QuickControls2, Qml
 QT_ARCH = "win64_msvc2022_64"
 QT_HOST = "windows"
 QT_TARGET = "desktop"
@@ -117,13 +115,14 @@ def setup_dirs():
 
 def install_qt():
     qt_dir = os.path.join(DEPS_DIR, "Qt", QT_VERSION, "msvc2022_64")
-    if os.path.exists(qt_dir):
+    # Check if Qt dir exists AND if Qt6QuickWidgets.dll exists (to ensure qtdeclarative is installed)
+    if os.path.exists(qt_dir) and os.path.exists(os.path.join(qt_dir, "bin", "Qt6QuickWidgets.dll")):
         print(f"Qt {QT_VERSION} already installed.")
         return qt_dir
 
     print(f"Installing Qt {QT_VERSION}...")
     # aqt install-qt windows desktop 6.8.0 win64_msvc2022_64 -m qt5compat qtimageformats qtshadertools qtwebsockets
-    cmd = [sys.executable, "-m", "aqt", "install-qt", QT_HOST, QT_TARGET, QT_VERSION, QT_ARCH, "--outputdir", os.path.join(DEPS_DIR, "Qt"), "-m", "qt5compat", "qtimageformats", "qtshadertools", "qtwebsockets"]
+    cmd = [sys.executable, "-m", "aqt", "install-qt", QT_HOST, QT_TARGET, QT_VERSION, QT_ARCH, "--outputdir", os.path.join(DEPS_DIR, "Qt"), "-m", "qt5compat", "qtdeclarative", "qtimageformats", "qtshadertools", "qtwebsockets"]
     run_command(cmd)
     return qt_dir
 
@@ -156,34 +155,39 @@ def install_zlib():
 
 def install_sqlite():
     sqlite_dir = os.path.join(DEPS_DIR, "sqlite3")
-    if os.path.exists(os.path.join(INSTALL_DIR, "include", "sqlite3.h")):
+    # Check for both header and lib
+    if os.path.exists(os.path.join(INSTALL_DIR, "include", "sqlite3.h")) and \
+       (os.path.exists(os.path.join(INSTALL_DIR, "lib", "SQLite3.lib")) or os.path.exists(os.path.join(INSTALL_DIR, "lib", "sqlite3.lib"))):
         print("SQLite3 already installed.")
         return
 
-    print("Downloading SQLite3...")
-    # Download official amalgamation
-    zip_path = os.path.join(DEPS_DIR, "sqlite3.zip")
-    urllib.request.urlretrieve(SQLITE_URL, zip_path)
-    
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(DEPS_DIR)
-    
-    # Rename extracted folder (usually sqlite-amalgamation-3450100) to sqlite3
-    # Find the folder starting with sqlite-amalgamation
-    extracted_folder = None
-    for item in os.listdir(DEPS_DIR):
-        if item.startswith("sqlite-amalgamation"):
-            extracted_folder = os.path.join(DEPS_DIR, item)
-            break
-    
-    if extracted_folder:
-        os.rename(extracted_folder, sqlite_dir)
-    os.remove(zip_path)
+    if not os.path.exists(sqlite_dir):
+        print("Downloading SQLite3...")
+        # Download official amalgamation
+        zip_path = os.path.join(DEPS_DIR, "sqlite3.zip")
+        urllib.request.urlretrieve(SQLITE_URL, zip_path)
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(DEPS_DIR)
+        
+        # Rename extracted folder (usually sqlite-amalgamation-3450100) to sqlite3
+        # Find the folder starting with sqlite-amalgamation
+        extracted_folder = None
+        for item in os.listdir(DEPS_DIR):
+            if item.startswith("sqlite-amalgamation"):
+                extracted_folder = os.path.join(DEPS_DIR, item)
+                break
+        
+        if extracted_folder:
+            os.rename(extracted_folder, sqlite_dir)
+        os.remove(zip_path)
 
     # Create CMakeLists.txt
     cmake_content = """
 cmake_minimum_required(VERSION 3.10)
 project(SQLite3 C)
+
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_library(SQLite3 SHARED sqlite3.c)
 target_include_directories(SQLite3 PUBLIC 
@@ -243,8 +247,9 @@ check_required_components(SQLite3)
     build_dir = os.path.join(sqlite_dir, "build")
     if not os.path.exists(build_dir):
         os.makedirs(build_dir)
-        run_command(["cmake", "-S", "..", "-B", ".", f"-DCMAKE_INSTALL_PREFIX={INSTALL_DIR}"], cwd=build_dir)
-        run_command(["cmake", "--build", ".", "--config", "Release", "--target", "install"], cwd=build_dir)
+    
+    run_command(["cmake", "-S", "..", "-B", ".", f"-DCMAKE_INSTALL_PREFIX={INSTALL_DIR}"], cwd=build_dir)
+    run_command(["cmake", "--build", ".", "--config", "Release", "--target", "install"], cwd=build_dir)
 
 
 def install_qtkeychain(qt_dir):
@@ -327,9 +332,70 @@ def build_opencloud(qt_dir):
     run_command(cmd)
     run_command(["cmake", "--build", BUILD_DIR, "--config", "Release"])
     
-    # Package
-    print("Packaging...")
-    run_command(["cpack", "-C", "Release"], cwd=BUILD_DIR)
+    # Copy dependency DLLs from install/bin to build/bin/Release
+    print("Copying dependency DLLs...")
+    bin_dir = os.path.join(BUILD_DIR, "bin", "Release")
+    install_bin = os.path.join(INSTALL_DIR, "bin")
+    
+    if os.path.exists(install_bin):
+        for dll_file in os.listdir(install_bin):
+            if dll_file.endswith(".dll"):
+                src = os.path.join(install_bin, dll_file)
+                dst = os.path.join(bin_dir, dll_file)
+                print(f"  Copying {dll_file}")
+                shutil.copy2(src, dst)
+    
+    # Deploy Qt dependencies
+    print("Deploying Qt dependencies...")
+    windeployqt = os.path.join(qt_dir, "bin", "windeployqt.exe")
+    
+    if os.path.exists(windeployqt):
+        # Deploy for the main GUI application
+        opencloud_exe = os.path.join(bin_dir, "opencloud.exe")
+        if os.path.exists(opencloud_exe):
+            # Use absolute path for qmldir
+            qml_dir = os.path.abspath("src/gui")
+            print(f"Running windeployqt with QML directory: {qml_dir}")
+            # Add --verbose to see what's being deployed, and --qml to force QML deployment
+            run_command([windeployqt, "--release", "--qmldir", qml_dir, "--qml", opencloud_exe], fail_exit=True)
+        else:
+            print(f"Warning: opencloud.exe not found at {opencloud_exe}")
+    else:
+        print(f"Warning: windeployqt not found at {windeployqt}")
+
+    # Manual check for Qt6QuickWidgets.dll which windeployqt seems to miss
+    required_dlls = ["Qt6QuickWidgets.dll", "Qt6Xml.dll"]
+    for dll in required_dlls:
+        dll_path = os.path.join(bin_dir, dll)
+        if not os.path.exists(dll_path):
+            print(f"Warning: {dll} missing after windeployqt. Copying manually...")
+            src_dll = os.path.join(qt_dir, "bin", dll)
+            if os.path.exists(src_dll):
+                shutil.copy2(src_dll, dll_path)
+                print(f"  Copied {dll}")
+            else:
+                print(f"  Error: Could not find {dll} in Qt bin directory!")
+    
+    # Create package using Python zipfile
+    print("Creating package...")
+    package_name = "OpenCloudDesktop-1.0.0-win64.zip"
+    package_path = os.path.join(BUILD_DIR, package_name)
+    
+    # Remove old package if exists
+    if os.path.exists(package_path):
+        os.remove(package_path)
+    
+    with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add all files from bin/Release
+        for root, dirs, files in os.walk(bin_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, bin_dir)
+                zipf.write(file_path, arcname)
+                print(f"  Adding: {arcname}")
+    
+    print(f"\nPackage created: {package_path}")
+    print(f"Package size: {os.path.getsize(package_path) / (1024*1024):.2f} MB")
 
 def main():
     check_env()
