@@ -122,7 +122,7 @@ def install_qt():
 
     print(f"Installing Qt {QT_VERSION}...")
     # aqt install-qt windows desktop 6.8.0 win64_msvc2022_64 -m qt5compat qtimageformats qtshadertools qtwebsockets
-    cmd = [sys.executable, "-m", "aqt", "install-qt", QT_HOST, QT_TARGET, QT_VERSION, QT_ARCH, "--outputdir", os.path.join(DEPS_DIR, "Qt"), "-m", "qt5compat", "qtdeclarative", "qtimageformats", "qtshadertools", "qtwebsockets"]
+    cmd = [sys.executable, "-m", "aqt", "install-qt", QT_HOST, QT_TARGET, QT_VERSION, QT_ARCH, "--outputdir", os.path.join(DEPS_DIR, "Qt"), "-m", "qt5compat", "qtimageformats", "qtshadertools", "qtwebsockets"]
     run_command(cmd)
     return qt_dir
 
